@@ -1,6 +1,6 @@
 <script setup>
 import { ref, nextTick, watch } from 'vue'
-import { Plus, ChatDotRound, User, Monitor } from '@element-plus/icons-vue'
+import { Plus, ChatDotRound, User, Monitor, Check, Close, Edit } from '@element-plus/icons-vue'
 import { useUserStore } from '@/store/modules/user'
 import { chatApi } from '@/api/modules/chat'
 import { marked } from 'marked'
@@ -69,6 +69,73 @@ const scrollToBottom = async () => {
 watch(() => messages.value.length, scrollToBottom)
 watch(() => messages.value[messages.value.length - 1]?.content, scrollToBottom)
 
+// 解析流式响应数据
+const processStreamResponse = async (stream, aiMessageId, onToolFeedback) => {
+  const reader = stream.getReader()
+  const decoder = new TextDecoder()
+  let aiMsg = messages.value.find(m => m.id === aiMessageId)
+  let buffer = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    
+    if (done) {
+      break
+    }
+    
+    buffer += decoder.decode(value, { stream: true })
+    
+    // 尝试解析 buffer 中的 JSON 对象
+    let parsing = true
+    while (parsing) {
+      // 查找第一个左大括号
+      const start = buffer.indexOf('{')
+      if (start === -1) {
+        parsing = false
+        break
+      }
+      
+      // 简单的括号计数来寻找匹配的右大括号
+      let balance = 0
+      let end = -1
+      for (let i = start; i < buffer.length; i++) {
+        if (buffer[i] === '{') balance++
+        if (buffer[i] === '}') balance--
+        if (balance === 0) {
+          end = i
+          break
+        }
+      }
+      
+      if (end !== -1) {
+        const jsonStr = buffer.substring(start, end + 1)
+        try {
+          const data = JSON.parse(jsonStr)
+          
+          if (data.node === '_AGENT_MODEL_') {
+            if (aiMsg && data.chunk) {
+              aiMsg.content += data.chunk
+            }
+          } else if (data.node === '_AGENT_HOOK_HITL') {
+             if (data.toolFeedback && onToolFeedback) {
+               onToolFeedback(data.toolFeedback)
+             }
+          }
+          
+        } catch (e) {
+          console.error('JSON parse error:', e)
+        }
+        
+        // 移除已处理的部分
+        buffer = buffer.substring(end + 1)
+      } else {
+        // 没有找到完整的对象，等待更多数据
+        parsing = false
+      }
+    }
+  }
+}
+
 // 发送消息
 const sendMessage = async () => {
   if (!inputMessage.value.trim() || isLoading.value) return
@@ -88,13 +155,15 @@ const sendMessage = async () => {
   messages.value.push({
     id: aiMessageId,
     role: 'ai',
-    content: ''
+    content: '',
+    toolFeedback: null, // 用于存储人工介入的工具反馈请求
+    feedbackSubmitted: false
   })
 
   isLoading.value = true
 
   try {
-    const stream = await chatApi.streamChat({
+    const stream = await chatApi.chat({
       question: userText,
       userId: userStore.userInfo.name || 'user',
       sessionId: activeChatId.value.toString()
@@ -104,58 +173,17 @@ const sendMessage = async () => {
       throw new Error('Response body is null')
     }
 
-    const reader = stream.getReader()
-    const decoder = new TextDecoder()
-    let aiMsg = messages.value.find(m => m.id === aiMessageId)
-    let buffer = ''
-
-    while (true) {
-      const { done, value } = await reader.read()
-      
-      if (done) {
-        if (buffer && aiMsg) {
-          // 处理剩余的 buffer
-          const lines = buffer.split('\n')
-          for (const line of lines) {
-             if (line.trim() === '') continue
-             if (line.startsWith('data:')) {
-                let content = line.substring(5)
-                if (content.startsWith(' ')) {
-                  content = content.substring(1)
-                }
-                aiMsg.content += content
-              }
-           }
-         }
-         break
+    await processStreamResponse(stream, aiMessageId, (toolFeedback) => {
+       const aiMsg = messages.value.find(m => m.id === aiMessageId)
+       if (aiMsg) {
+         // 初始化反馈状态
+         aiMsg.toolFeedback = toolFeedback.map(tool => ({
+           ...tool,
+           approved: true, // 默认通过
+           feedback: ''
+         }))
        }
-       
-       buffer += decoder.decode(value, { stream: true })
-       const lines = buffer.split('\n')
-       buffer = lines.pop() // 保留最后一行（可能是因为不完整）
-       
-       for (const line of lines) {
-        // 跳过空行（通常是 SSE 的分隔符）
-        if (line.trim() === '') continue
-        
-        if (line.startsWith('data:')) {
-          // 提取 data: 后的内容
-          let content = line.substring(5)
-          if (content.startsWith(' ')) {
-            content = content.substring(1)
-          }
-          if (aiMsg) {
-            aiMsg.content += content
-          }
-        } else {
-          // 不以 data: 开头的非空行，通常是上一行的延续（原文本中的换行）
-          // 需要补上被 split 消耗掉的换行符
-          if (aiMsg) {
-            aiMsg.content += '\n' + line
-          }
-        }
-      }
-    }
+    })
 
   } catch (error) {
     console.error('Failed to send message:', error)
@@ -163,6 +191,52 @@ const sendMessage = async () => {
     if (aiMsg) {
       aiMsg.content += `\n[出错了: ${error.message || '网络请求失败'}]`
     }
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// 提交反馈
+const submitFeedback = async (messageId) => {
+  const aiMsg = messages.value.find(m => m.id === messageId)
+  if (!aiMsg || !aiMsg.toolFeedback) return
+  
+  const feedbacks = aiMsg.toolFeedback.map(item => ({
+    approved: item.approved,
+    feedback: item.feedback || ''
+  }))
+  
+  aiMsg.feedbackSubmitted = true
+  isLoading.value = true
+  
+  try {
+    const stream = await chatApi.feedback({
+      feedbacks,
+      userId: userStore.userInfo.name || 'user',
+      sessionId: activeChatId.value.toString()
+    })
+    
+    if (!stream) {
+      throw new Error('Response body is null')
+    }
+    
+    // 继续处理反馈后的流式响应
+    await processStreamResponse(stream, messageId, (toolFeedback) => {
+       // 如果反馈后还有新的 HITL，这里可以递归处理，或者追加到当前消息
+       // 简单起见，我们假设反馈后会继续生成文本，或者可能有新的一轮 HITL
+       // 如果有新的一轮 HITL，我们需要更新 toolFeedback
+       aiMsg.toolFeedback = toolFeedback.map(tool => ({
+           ...tool,
+           approved: true,
+           feedback: ''
+       }))
+       aiMsg.feedbackSubmitted = false // 重置提交状态以便进行下一轮反馈
+    })
+    
+  } catch (error) {
+     console.error('Failed to submit feedback:', error)
+     aiMsg.content += `\n[反馈提交失败: ${error.message}]`
+     aiMsg.feedbackSubmitted = false // 允许重试
   } finally {
     isLoading.value = false
   }
@@ -238,7 +312,53 @@ const selectChat = (id) => {
             <div class="message-text" v-if="msg.role === 'user'">{{ msg.content }}</div>
             <!-- <div class="message-text" v-else v-html="msg.content"></div> -->
             <div class="message-text markdown-body" v-else v-html="marked.parse(msg.content)"></div>
-            <span v-if="msg.role === 'ai' && msg.content === '' && isLoading" class="typing-indicator">...</span>
+            <span v-if="msg.role === 'ai' && msg.content === '' && isLoading && !msg.toolFeedback" class="typing-indicator">...</span>
+            
+            <!-- 工具调用反馈卡片 -->
+            <div v-if="msg.toolFeedback && !msg.feedbackSubmitted" class="tool-feedback-card">
+              <div class="tool-feedback-header">
+                <el-icon><Monitor /></el-icon>
+                <span>人工介入请求</span>
+              </div>
+              <div v-for="tool in msg.toolFeedback" :key="tool.id" class="tool-item">
+                <div class="tool-info">
+                  <div class="tool-name">{{ tool.name }}</div>
+                  <div class="tool-desc">{{ tool.description }}</div>
+                  <div class="tool-args">
+                    <pre>{{ JSON.parse(tool.arguments) }}</pre>
+                  </div>
+                </div>
+                <div class="tool-actions">
+                  <div class="approval-switch">
+                    <span>是否批准:</span>
+                    <el-switch
+                      v-model="tool.approved"
+                      active-text="批准"
+                      inactive-text="拒绝"
+                      inline-prompt
+                      style="--el-switch-on-color: #13ce66; --el-switch-off-color: #ff4949"
+                    />
+                  </div>
+                  <div class="feedback-input" v-if="!tool.approved">
+                    <el-input
+                      v-model="tool.feedback"
+                      placeholder="请输入拒绝原因或修改建议..."
+                      size="small"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div class="card-footer">
+                 <el-button type="primary" size="small" @click="submitFeedback(msg.id)" :loading="isLoading">提交反馈</el-button>
+              </div>
+            </div>
+            
+             <!-- 已提交反馈后的状态展示 -->
+            <div v-if="msg.feedbackSubmitted && msg.toolFeedback" class="feedback-submitted-status">
+               <el-icon color="#67C23A"><Check /></el-icon>
+               <span>已提交反馈，等待 AI 继续响应...</span>
+            </div>
+
           </div>
         </div>
       </div>
@@ -459,5 +579,94 @@ const selectChat = (id) => {
   padding: 12px;
   border-radius: 6px;
   overflow-x: auto; /* 代码块过长时显示滚动条 */
+}
+
+/* Tool Feedback Card Styles */
+.tool-feedback-card {
+  margin-top: 10px;
+  background-color: #ffffff;
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  padding: 10px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.tool-feedback-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: bold;
+  color: #e6a23c;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #ebeef5;
+  padding-bottom: 8px;
+}
+
+.tool-item {
+  margin-bottom: 15px;
+  border-bottom: 1px dashed #ebeef5;
+  padding-bottom: 10px;
+}
+
+.tool-item:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.tool-name {
+  font-weight: bold;
+  color: #409eff;
+  margin-bottom: 4px;
+}
+
+.tool-desc {
+  font-size: 13px;
+  color: #606266;
+  margin-bottom: 6px;
+}
+
+.tool-args pre {
+  background-color: #f5f7fa;
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #303133;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.tool-actions {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.approval-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.card-footer {
+  margin-top: 10px;
+  text-align: right;
+  border-top: 1px solid #ebeef5;
+  padding-top: 10px;
+}
+
+.feedback-submitted-status {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #67c23a;
+  background-color: #f0f9eb;
+  padding: 8px 12px;
+  border-radius: 4px;
 }
 </style>
