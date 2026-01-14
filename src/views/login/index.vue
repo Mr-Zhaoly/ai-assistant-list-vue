@@ -15,10 +15,10 @@
         class="login-form"
         size="large"
       >
-        <el-form-item prop="username">
+        <el-form-item prop="account">
           <el-input
-            v-model="loginForm.username"
-            placeholder="Username: admin"
+            v-model="loginForm.account"
+            placeholder="请输入用户名或邮箱"
             :prefix-icon="User"
             @keyup.enter="handleLogin"
           />
@@ -28,11 +28,33 @@
           <el-input
             v-model="loginForm.password"
             type="password"
-            placeholder="Password: 123456"
+            placeholder="请输入密码"
             :prefix-icon="Lock"
             show-password
             @keyup.enter="handleLogin"
           />
+        </el-form-item>
+
+        <el-form-item prop="captcha">
+          <div class="captcha-container">
+            <el-input
+              v-model="loginForm.captcha"
+              placeholder="请输入验证码"
+              :prefix-icon="Key"
+              @keyup.enter="handleLogin"
+              style="flex: 1;"
+            />
+            <el-button
+              :loading="captchaLoading"
+              :disabled="captchaCountdown > 0"
+              type="primary"
+              plain
+              @click="handleGetCaptcha"
+              class="captcha-btn"
+            >
+              {{ captchaCountdown > 0 ? `${captchaCountdown}秒后重试` : '获取验证码' }}
+            </el-button>
+          </div>
         </el-form-item>
 
         <el-form-item>
@@ -42,13 +64,13 @@
             class="login-btn"
             @click="handleLogin"
           >
-            Sign In
+            登 录
           </el-button>
         </el-form-item>
       </el-form>
       
       <div class="login-footer">
-        <p>Tip: Any username/password works for demo</p>
+        <p>提示：请先输入账号并获取验证码</p>
       </div>
     </div>
   </div>
@@ -57,27 +79,65 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { User, Lock, Monitor } from '@element-plus/icons-vue'
+import { User, Lock, Monitor, Key } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { useUserStore } from '@/store/modules/user'
+import { authApi } from '@/api/modules/auth'
 
 const router = useRouter()
 const userStore = useUserStore()
 
 const loginFormRef = ref<FormInstance>()
 const loading = ref(false)
+const captchaLoading = ref(false)
+const captchaCountdown = ref(0)
 
 const loginForm = reactive({
-  username: 'admin',
-  password: '123456'
+  account: '',
+  password: '',
+  captcha: ''
 })
 
 const loginRules = reactive<FormRules>({
-  username: [{ required: true, message: 'Please enter username', trigger: 'blur' }],
-  password: [{ required: true, message: 'Please enter password', trigger: 'blur' }]
+  account: [{ required: true, message: '请输入用户名或邮箱', trigger: 'blur' }],
+  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+  captcha: [{ required: true, message: '请输入验证码', trigger: 'blur' }]
 })
 
+// 获取验证码
+const handleGetCaptcha = async () => {
+  if (!loginForm.account) {
+    ElMessage.warning('请先输入用户名或邮箱')
+    return
+  }
+
+  captchaLoading.value = true
+  try {
+    const res: any = await authApi.getCaptcha({ account: loginForm.account })
+    if (res.code === 200 || res.success) {
+      const captchaData = res.data || res
+      ElMessage.success(`验证码已发送：${captchaData.code}（仅用于演示）`)
+      
+      // 开始倒计时
+      captchaCountdown.value = 60
+      const timer = setInterval(() => {
+        captchaCountdown.value--
+        if (captchaCountdown.value <= 0) {
+          clearInterval(timer)
+        }
+      }, 1000)
+    } else {
+      ElMessage.error(res.message || '获取验证码失败')
+    }
+  } catch (error: any) {
+    ElMessage.error(error.message || '获取验证码失败')
+  } finally {
+    captchaLoading.value = false
+  }
+}
+
+// 登录
 const handleLogin = async () => {
   if (!loginFormRef.value) return
   
@@ -86,10 +146,10 @@ const handleLogin = async () => {
       loading.value = true
       try {
         await userStore.login(loginForm)
-        ElMessage.success('Login success')
+        ElMessage.success('登录成功')
         router.push('/dashboard')
       } catch (error: any) {
-        ElMessage.error(error.message || 'Login failed')
+        ElMessage.error(error.message || '登录失败')
       } finally {
         loading.value = false
       }
@@ -137,6 +197,17 @@ const handleLogin = async () => {
 
 .login-form {
   position: relative;
+}
+
+.captcha-container {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+
+.captcha-btn {
+  width: 140px;
+  flex-shrink: 0;
 }
 
 .login-btn {
