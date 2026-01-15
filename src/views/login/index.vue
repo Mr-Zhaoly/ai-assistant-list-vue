@@ -71,6 +71,7 @@
       
       <div class="login-footer">
         <p>提示：请先输入账号并获取验证码</p>
+        <p>还没有账户？<router-link to="/register" class="register-link">立即注册</router-link></p>
       </div>
     </div>
   </div>
@@ -219,5 +220,16 @@ const handleLogin = async () => {
   text-align: center;
   font-size: 12px;
   color: #999;
+}
+
+.register-link {
+  color: #409eff;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.3s;
+}
+
+.register-link:hover {
+  color: #66b1ff;
 }
 </style>
