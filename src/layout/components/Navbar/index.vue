@@ -1,3 +1,23 @@
+<script setup lang="ts">
+import { useRouter } from 'vue-router'
+import { useUserStore } from '@/store/modules/user'
+import { ElMessageBox } from 'element-plus'
+
+const router = useRouter()
+const userStore = useUserStore()
+
+const handleLogout = () => {
+  ElMessageBox.confirm('确定要退出登录吗？', '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(async () => {
+    await userStore.logout()
+    router.push('/login')
+  })
+}
+</script>
+
 <template>
   <div class="navbar">
     <div class="left">
@@ -12,7 +32,7 @@
         <template #dropdown>
           <el-dropdown-menu>
             <el-dropdown-item>Profile</el-dropdown-item>
-            <el-dropdown-item divided>Logout</el-dropdown-item>
+            <el-dropdown-item divided @click="handleLogout">Logout</el-dropdown-item>
           </el-dropdown-menu>
         </template>
       </el-dropdown>

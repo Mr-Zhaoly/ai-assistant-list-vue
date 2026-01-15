@@ -28,14 +28,14 @@ export const authApi = {
   // 退出登录
   logout: () => {
     return request({
-      url: '/auth/logout',
+      url: '/business/user/logout',
       method: 'post'
     })
   },
   // 获取用户信息
   getUserInfo: () => {
     return request({
-      url: '/user/info',
+      url: '/business/user/info',
       method: 'get'
     })
   }

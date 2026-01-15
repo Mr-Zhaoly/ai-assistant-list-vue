@@ -54,10 +54,16 @@ export const useUserStore = defineStore('user', () => {
   }
 
   // 退出登录
-  const logout = () => {
-    token.value = ''
-    userInfo.value = { name: '', avatar: '', roles: [] }
-    localStorage.removeItem('token')
+  const logout = async () => {
+    try {
+      await authApi.logout()
+    } catch (error) {
+      console.warn('Logout API failed:', error)
+    } finally {
+      token.value = ''
+      userInfo.value = { name: '', avatar: '', roles: [] }
+      localStorage.removeItem('token')
+    }
   }
 
   return {
