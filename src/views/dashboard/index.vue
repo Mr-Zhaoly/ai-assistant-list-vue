@@ -1,12 +1,12 @@
 <script setup>
 import { ref, nextTick, watch } from 'vue'
-import { Plus, ChatDotRound, User, Monitor, Check, Close, Edit } from '@element-plus/icons-vue'
+import { Plus, ChatDotRound, User, Monitor, Check, Close, Edit, Setting, Connection } from '@element-plus/icons-vue'
 import { useUserStore } from '@/store/modules/user'
 import { chatApi } from '@/api/modules/chat'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
-import 'highlight.js/styles/github.css'
-import 'github-markdown-css/github-markdown.css'
+import 'highlight.js/styles/github-dark.css'
+import 'github-markdown-css/github-markdown-dark.css'
 
 // Configure marked with highlight.js
 const renderer = new marked.Renderer()
@@ -16,7 +16,7 @@ marked.setOptions({
     const language = hljs.getLanguage(lang) ? lang : 'plaintext'
     return hljs.highlight(code, { language }).value
   },
-  langPrefix: 'hljs language-', // highlight.js css expects a top-level 'hljs' class.
+  langPrefix: 'hljs language-',
   pedantic: false,
   gfm: true,
   breaks: true,
@@ -25,11 +25,6 @@ marked.setOptions({
   smartypants: false,
   xhtml: false
 })
-
-// Markdown render helper
-const renderMarkdown = (content) => {
-  return marked.parse(content)
-}
 
 const userStore = useUserStore()
 
@@ -78,24 +73,17 @@ const processStreamResponse = async (stream, aiMessageId, onToolFeedback) => {
 
   while (true) {
     const { done, value } = await reader.read()
-    
-    if (done) {
-      break
-    }
+    if (done) break
     
     buffer += decoder.decode(value, { stream: true })
-    
-    // 尝试解析 buffer 中的 JSON 对象
     let parsing = true
     while (parsing) {
-      // 查找第一个左大括号
       const start = buffer.indexOf('{')
       if (start === -1) {
         parsing = false
         break
       }
       
-      // 简单的括号计数来寻找匹配的右大括号
       let balance = 0
       let end = -1
       for (let i = start; i < buffer.length; i++) {
@@ -111,7 +99,6 @@ const processStreamResponse = async (stream, aiMessageId, onToolFeedback) => {
         const jsonStr = buffer.substring(start, end + 1)
         try {
           const data = JSON.parse(jsonStr)
-          
           if (data.node === '_AGENT_MODEL_') {
             if (aiMsg && data.chunk) {
               aiMsg.content += data.chunk
@@ -121,15 +108,11 @@ const processStreamResponse = async (stream, aiMessageId, onToolFeedback) => {
                onToolFeedback(data.toolFeedback)
              }
           }
-          
         } catch (e) {
           console.error('JSON parse error:', e)
         }
-        
-        // 移除已处理的部分
         buffer = buffer.substring(end + 1)
       } else {
-        // 没有找到完整的对象，等待更多数据
         parsing = false
       }
     }
@@ -143,20 +126,18 @@ const sendMessage = async () => {
   const userText = inputMessage.value
   inputMessage.value = ''
 
-  // 添加用户消息
   messages.value.push({
     id: Date.now(),
     role: 'user',
     content: userText
   })
 
-  // 添加 AI 消息占位符
   const aiMessageId = Date.now() + 1
   messages.value.push({
     id: aiMessageId,
     role: 'ai',
     content: '',
-    toolFeedback: null, // 用于存储人工介入的工具反馈请求
+    toolFeedback: null,
     feedbackSubmitted: false
   })
 
@@ -169,22 +150,18 @@ const sendMessage = async () => {
       sessionId: activeChatId.value.toString()
     })
 
-    if (!stream) {
-      throw new Error('Response body is null')
-    }
+    if (!stream) throw new Error('Response body is null')
 
     await processStreamResponse(stream, aiMessageId, (toolFeedback) => {
        const aiMsg = messages.value.find(m => m.id === aiMessageId)
        if (aiMsg) {
-         // 初始化反馈状态
          aiMsg.toolFeedback = toolFeedback.map(tool => ({
            ...tool,
-           approved: true, // 默认通过
+           approved: true,
            feedback: ''
          }))
        }
     })
-
   } catch (error) {
     console.error('Failed to send message:', error)
     const aiMsg = messages.value.find(m => m.id === aiMessageId)
@@ -216,27 +193,20 @@ const submitFeedback = async (messageId) => {
       sessionId: activeChatId.value.toString()
     })
     
-    if (!stream) {
-      throw new Error('Response body is null')
-    }
+    if (!stream) throw new Error('Response body is null')
     
-    // 继续处理反馈后的流式响应
     await processStreamResponse(stream, messageId, (toolFeedback) => {
-       // 如果反馈后还有新的 HITL，这里可以递归处理，或者追加到当前消息
-       // 简单起见，我们假设反馈后会继续生成文本，或者可能有新的一轮 HITL
-       // 如果有新的一轮 HITL，我们需要更新 toolFeedback
        aiMsg.toolFeedback = toolFeedback.map(tool => ({
            ...tool,
            approved: true,
            feedback: ''
        }))
-       aiMsg.feedbackSubmitted = false // 重置提交状态以便进行下一轮反馈
+       aiMsg.feedbackSubmitted = false
     })
-    
   } catch (error) {
      console.error('Failed to submit feedback:', error)
      aiMsg.content += `\n[反馈提交失败: ${error.message}]`
-     aiMsg.feedbackSubmitted = false // 允许重试
+     aiMsg.feedbackSubmitted = false
   } finally {
     isLoading.value = false
   }
@@ -256,8 +226,6 @@ const createNewChat = () => {
 // 切换对话
 const selectChat = (id) => {
   activeChatId.value = id
-  // 模拟切换对话加载消息 (实际项目中应该从后端加载)
-  // 这里为了演示，如果是原来的 ID 1，显示原来的示例数据，否则显示空对话
   if (id === 1) {
     messages.value = [
       { id: 1, role: 'ai', content: '你好！我是你的 AI 助手，有什么可以帮你的吗？' },
@@ -275,8 +243,12 @@ const selectChat = (id) => {
 <template>
   <el-container class="chat-container">
     <!-- 左侧菜单 (聊天列表) -->
-    <el-aside width="260px" class="aside">
-      <div class="new-chat-wrapper">
+    <el-aside width="280px" class="aside">
+      <div class="aside-header">
+        <div class="logo">
+          <el-icon color="#00f2fe"><Connection /></el-icon>
+          <span>AI Assistant</span>
+        </div>
         <el-button type="primary" class="new-chat-btn" :icon="Plus" @click="createNewChat">
           新建对话
         </el-button>
@@ -293,6 +265,14 @@ const selectChat = (id) => {
           <span class="chat-title">{{ chat.title }}</span>
         </div>
       </div>
+
+      <div class="aside-footer">
+        <div class="user-info">
+          <el-avatar :size="32" :icon="User" />
+          <span class="username">{{ userStore.userInfo.username || '管理员' }}</span>
+        </div>
+        <el-icon class="setting-icon"><Setting /></el-icon>
+      </div>
     </el-aside>
     
     <!-- 主内容区 -->
@@ -306,13 +286,16 @@ const selectChat = (id) => {
         >
           <div class="avatar">
             <el-avatar v-if="msg.role === 'user'" :icon="User" class="user-avatar" />
-            <div v-else class="ai-avatar">AI</div>
+            <div v-else class="ai-avatar">
+              <el-icon><Monitor /></el-icon>
+            </div>
           </div>
           <div class="message-bubble">
             <div class="message-text" v-if="msg.role === 'user'">{{ msg.content }}</div>
-            <!-- <div class="message-text" v-else v-html="msg.content"></div> -->
             <div class="message-text markdown-body" v-else v-html="marked.parse(msg.content)"></div>
-            <span v-if="msg.role === 'ai' && msg.content === '' && isLoading && !msg.toolFeedback" class="typing-indicator">...</span>
+            <span v-if="msg.role === 'ai' && msg.content === '' && isLoading && !msg.toolFeedback" class="typing-indicator">
+              <span></span><span></span><span></span>
+            </span>
             
             <!-- 工具调用反馈卡片 -->
             <div v-if="msg.toolFeedback && !msg.feedbackSubmitted" class="tool-feedback-card">
@@ -336,47 +319,47 @@ const selectChat = (id) => {
                       active-text="批准"
                       inactive-text="拒绝"
                       inline-prompt
-                      style="--el-switch-on-color: #13ce66; --el-switch-off-color: #ff4949"
                     />
                   </div>
-                  <div class="feedback-input" v-if="!tool.approved">
-                    <el-input
-                      v-model="tool.feedback"
-                      placeholder="请输入拒绝原因或修改建议..."
-                      size="small"
-                    />
-                  </div>
+                  <el-input
+                    v-if="!tool.approved"
+                    v-model="tool.feedback"
+                    type="textarea"
+                    placeholder="请输入拒绝原因或修改建议..."
+                    rows="2"
+                  />
                 </div>
               </div>
-              <div class="card-footer">
-                 <el-button type="primary" size="small" @click="submitFeedback(msg.id)" :loading="isLoading">提交反馈</el-button>
+              <div class="feedback-submit">
+                <el-button type="primary" @click="submitFeedback(msg.id)" :loading="isLoading">
+                  提交反馈
+                </el-button>
               </div>
             </div>
-            
-             <!-- 已提交反馈后的状态展示 -->
-            <div v-if="msg.feedbackSubmitted && msg.toolFeedback" class="feedback-submitted-status">
-               <el-icon color="#67C23A"><Check /></el-icon>
-               <span>已提交反馈，等待 AI 继续响应...</span>
-            </div>
-
           </div>
         </div>
       </div>
       
-      <!-- 输入框区域 -->
-      <div class="input-container">
+      <!-- 输入区域 -->
+      <div class="input-area">
         <div class="input-wrapper">
           <el-input
             v-model="inputMessage"
             type="textarea"
             :rows="3"
-            placeholder="请输入您的问题... (按 Enter 发送)"
+            placeholder="输入消息，按 Enter 发送..."
             resize="none"
-            :disabled="isLoading"
-            @keydown.enter.prevent="sendMessage"
+            @keyup.enter.exact.prevent="sendMessage"
           />
-          <div class="input-actions">
-            <el-button type="primary" @click="sendMessage" :loading="isLoading">发送</el-button>
+          <div class="input-footer">
+            <span class="input-tips">使用 Shift + Enter 换行</span>
+            <el-button 
+              type="primary" 
+              :disabled="!inputMessage.trim() || isLoading"
+              @click="sendMessage"
+            >
+              发送
+            </el-button>
           </div>
         </div>
       </div>
@@ -386,287 +369,299 @@ const selectChat = (id) => {
 
 <style scoped>
 .chat-container {
-  height: 100%;
-  display: flex;
+  height: 100vh;
+  background-color: #0f172a;
+  color: #e2e8f0;
 }
 
 .aside {
-  background-color: #f5f7fa;
-  border-right: 1px solid #dcdfe6;
+  background-color: #1e293b;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   flex-direction: column;
 }
 
-.new-chat-wrapper {
+.aside-header {
   padding: 20px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #00f2fe;
+  margin-bottom: 20px;
 }
 
 .new-chat-btn {
   width: 100%;
+  background: rgba(0, 242, 254, 0.1);
+  border: 1px solid rgba(0, 242, 254, 0.3);
+  color: #00f2fe;
+  font-weight: 600;
+}
+
+.new-chat-btn:hover {
+  background: rgba(0, 242, 254, 0.2);
 }
 
 .chat-list {
   flex: 1;
   overflow-y: auto;
-  padding: 0 10px;
+  padding: 10px;
 }
 
 .chat-item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   padding: 12px 15px;
   margin-bottom: 5px;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
-  color: #606266;
-  transition: background-color 0.2s;
+  transition: all 0.2s;
+  color: #94a3b8;
 }
 
 .chat-item:hover {
-  background-color: #e6e8eb;
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #f8fafc;
 }
 
 .chat-item.active {
-  background-color: #e6f0ff;
-  color: #409eff;
+  background-color: rgba(0, 242, 254, 0.1);
+  color: #00f2fe;
 }
 
 .chat-title {
+  font-size: 14px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.aside-footer {
+  padding: 15px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.username {
   font-size: 14px;
+  font-weight: 500;
+}
+
+.setting-icon {
+  cursor: pointer;
+  color: #94a3b8;
 }
 
 .main-content {
-  padding: 0;
   display: flex;
   flex-direction: column;
-  background-color: #ffffff;
+  padding: 0;
   position: relative;
 }
 
 .messages-container {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
-  padding-bottom: 20px;
+  padding: 40px 20% 20px;
 }
 
 .message-row {
   display: flex;
-  margin-bottom: 20px;
-  gap: 12px;
+  gap: 20px;
+  margin-bottom: 30px;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .message-user {
   flex-direction: row-reverse;
 }
 
-.message-ai {
-  flex-direction: row;
-}
-
 .avatar {
-  width: 40px;
-  height: 40px;
   flex-shrink: 0;
 }
 
 .ai-avatar {
-  width: 36px;
-  height: 36px;
-  background-color: #409eff;
-  color: white;
-  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: bold;
-  font-size: 14px;
+  color: white;
+  font-size: 20px;
 }
 
 .user-avatar {
-  background-color: #909399;
+  background-color: #64748b;
 }
 
 .message-bubble {
-  max-width: 100%;
-  padding: 12px 16px;
-  border-radius: 8px;
-  font-size: 15px;
+  max-width: 85%;
+  padding: 15px 20px;
+  border-radius: 15px;
   line-height: 1.6;
-  word-break: break-word;
-  white-space: pre-wrap; /* 保持换行 */
+  font-size: 15px;
 }
 
 .message-ai .message-bubble {
-  background-color: #f4f4f5;
-  color: #303133;
-  border-top-left-radius: 0;
+  background-color: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  color: #e2e8f0;
+  border-top-left-radius: 2px;
 }
 
 .message-user .message-bubble {
-  background-color: #409eff;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
   color: white;
-  border-top-right-radius: 0;
-}
-
-.input-container {
-  padding: 20px;
-  border-top: 1px solid #dcdfe6;
-  background-color: #ffffff;
-}
-
-.input-wrapper {
-  max-width: 800px;
-  margin: 0 auto;
-  position: relative;
-}
-
-.input-actions {
-  position: absolute;
-  bottom: 10px;
-  right: 10px;
+  border-top-right-radius: 2px;
 }
 
 .typing-indicator {
-  display: inline-block;
-  animation: pulse 1.5s infinite;
+  display: flex;
+  gap: 4px;
+  padding: 10px 0;
 }
 
-@keyframes pulse {
-  0% { opacity: 0.4; }
-  50% { opacity: 1; }
-  100% { opacity: 0.4; }
+.typing-indicator span {
+  width: 6px;
+  height: 6px;
+  background-color: #00f2fe;
+  border-radius: 50%;
+  animation: bounce 1.4s infinite ease-in-out;
 }
 
-/* Markdown 样式覆盖 */
-.markdown-body {
-  background-color: transparent !important;
-  font-size: 14px;
-  padding: 0 !important;
-  min-width: 0 !important;
-  width: auto !important;
-  box-sizing: border-box !important;
+.typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+.typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes bounce {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1); }
 }
 
-.markdown-body p,
-.markdown-body ul,
-.markdown-body ol,
-.markdown-body dl,
-.markdown-body blockquote,
-.markdown-body pre,
-.markdown-body table {
-  margin-bottom: 0.8em;
-  margin-top: 0;
+.input-area {
+  padding: 20px 20% 40px;
+  background: linear-gradient(to top, #0f172a 80%, transparent);
 }
 
-.markdown-body h1,
-.markdown-body h2,
-.markdown-body h3,
-.markdown-body h4,
-.markdown-body h5,
-.markdown-body h6 {
-  margin-top: 1.2em;
-  margin-bottom: 0.8em;
-  line-height: 1.4;
-}
-
-.markdown-body pre {
-  background-color: #ffffff;
-  padding: 12px;
-  border-radius: 6px;
-  overflow-x: auto; /* 代码块过长时显示滚动条 */
-}
-
-/* Tool Feedback Card Styles */
-.tool-feedback-card {
-  margin-top: 10px;
-  background-color: #ffffff;
-  border: 1px solid #e4e7ed;
-  border-radius: 6px;
+.input-wrapper {
+  background-color: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
   padding: 10px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+}
+
+.input-wrapper :deep(.el-textarea__inner) {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: #f8fafc;
+  font-size: 15px;
+}
+
+.input-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+  padding: 0 5px;
+}
+
+.input-tips {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.tool-feedback-card {
+  margin-top: 15px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(0, 242, 254, 0.2);
+  border-radius: 10px;
+  padding: 15px;
 }
 
 .tool-feedback-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-weight: bold;
-  color: #e6a23c;
-  margin-bottom: 10px;
-  border-bottom: 1px solid #ebeef5;
-  padding-bottom: 8px;
+  gap: 8px;
+  color: #00f2fe;
+  font-weight: 600;
+  margin-bottom: 15px;
 }
 
 .tool-item {
-  margin-bottom: 15px;
-  border-bottom: 1px dashed #ebeef5;
-  padding-bottom: 10px;
-}
-
-.tool-item:last-child {
-  border-bottom: none;
-  margin-bottom: 0;
-  padding-bottom: 0;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 10px;
 }
 
 .tool-name {
-  font-weight: bold;
-  color: #409eff;
-  margin-bottom: 4px;
+  font-weight: 600;
+  color: #f8fafc;
+  margin-bottom: 5px;
 }
 
 .tool-desc {
   font-size: 13px;
-  color: #606266;
-  margin-bottom: 6px;
+  color: #94a3b8;
+  margin-bottom: 10px;
 }
 
 .tool-args pre {
-  background-color: #f5f7fa;
-  padding: 8px;
-  border-radius: 4px;
+  background: #0f172a;
+  padding: 10px;
+  border-radius: 5px;
   font-size: 12px;
-  color: #303133;
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-all;
+  color: #00f2fe;
+  overflow-x: auto;
 }
 
 .tool-actions {
-  margin-top: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  margin-top: 15px;
 }
 
 .approval-switch {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 13px;
+  margin-bottom: 10px;
+  font-size: 14px;
 }
 
-.card-footer {
-  margin-top: 10px;
+.feedback-submit {
   text-align: right;
-  border-top: 1px solid #ebeef5;
-  padding-top: 10px;
+  margin-top: 15px;
 }
 
-.feedback-submitted-status {
-  margin-top: 8px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: #67c23a;
-  background-color: #f0f9eb;
-  padding: 8px 12px;
-  border-radius: 4px;
+/* Markdown Styles Overrides */
+.markdown-body {
+  background-color: transparent !important;
+  color: inherit !important;
+  font-size: 15px !important;
+}
+
+.markdown-body pre {
+  background-color: #0f172a !important;
 }
 </style>

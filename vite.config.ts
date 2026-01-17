@@ -14,25 +14,14 @@ export default defineConfig({
       '127.0.0.1'
     ],
     proxy: {
-      '/api/business': {
-        target: 'http://localhost:8083',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/business/, '/business'),
-        configure: (proxy, _options) => {
-          proxy.on('proxyReq', (proxyReq, _req, _res) => {
-            proxyReq.setHeader('Origin', 'http://localhost:8083');
-            proxyReq.setHeader('Referer', 'http://localhost:8083/');
-          });
-        }
-      },
       '/api': {
-        target: 'http://localhost:8082',
+        target: 'http://localhost:8080',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
         configure: (proxy, _options) => {
           proxy.on('proxyReq', (proxyReq, _req, _res) => {
-            proxyReq.setHeader('Origin', 'http://localhost:8082');
-            proxyReq.setHeader('Referer', 'http://localhost:8082/');
+            proxyReq.setHeader('Origin', 'http://localhost:8080');
+            proxyReq.setHeader('Referer', 'http://localhost:8080/');
           });
         }
       }

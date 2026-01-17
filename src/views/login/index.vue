@@ -1,11 +1,22 @@
 <template>
   <div class="login-container">
+    <!-- 科技感背景装饰 -->
+    <div class="bg-decoration">
+      <div class="circle circle-1"></div>
+      <div class="circle circle-2"></div>
+      <div class="circle circle-3"></div>
+      <div class="grid-overlay"></div>
+    </div>
+
     <div class="login-box">
       <div class="login-header">
         <div class="logo-container">
-          <el-icon class="logo-icon" :size="40" color="#409eff"><Monitor /></el-icon>
+          <div class="logo-glow">
+            <el-icon class="logo-icon" :size="48" color="#00f2fe"><Monitor /></el-icon>
+          </div>
         </div>
-        <h2 class="title">AI Assistant Admin</h2>
+        <h2 class="title">AI 助手管理系统</h2>
+        <p class="subtitle">智能连接未来 · 科技赋能管理</p>
       </div>
       
       <el-form
@@ -48,11 +59,10 @@
               :loading="captchaLoading"
               :disabled="captchaCountdown > 0"
               type="primary"
-              plain
-              @click="handleGetCaptcha"
               class="captcha-btn"
+              @click="handleGetCaptcha"
             >
-              {{ captchaCountdown > 0 ? `${captchaCountdown}秒后重试` : '获取验证码' }}
+              {{ captchaCountdown > 0 ? `${captchaCountdown}s` : '获取验证码' }}
             </el-button>
           </div>
         </el-form-item>
@@ -70,8 +80,10 @@
       </el-form>
       
       <div class="login-footer">
-        <p>提示：请先输入账号并获取验证码</p>
-        <p>还没有账户？<router-link to="/register" class="register-link">立即注册</router-link></p>
+        <div class="footer-tips">提示：请先输入账号并获取验证码</div>
+        <div class="footer-links">
+          还没有账户？<router-link to="/register" class="register-link">立即注册</router-link>
+        </div>
       </div>
     </div>
   </div>
@@ -163,19 +175,86 @@ const handleLogin = async () => {
 .login-container {
   min-height: 100vh;
   width: 100%;
-  background-color: #2d3a4b;
+  background: radial-gradient(circle at center, #1a2a6c, #b21f1f, #fdbb2d);
+  background: #0f172a;
   overflow: hidden;
   display: flex;
   justify-content: center;
   align-items: center;
+  position: relative;
+}
+
+/* 科技感背景装饰 */
+.bg-decoration {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  overflow: hidden;
+}
+
+.grid-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: linear-gradient(rgba(0, 242, 254, 0.05) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(0, 242, 254, 0.05) 1px, transparent 1px);
+  background-size: 50px 50px;
+}
+
+.circle {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.4;
+}
+
+.circle-1 {
+  width: 400px;
+  height: 400px;
+  background: #00f2fe;
+  top: -100px;
+  right: -100px;
+  animation: float 10s infinite alternate;
+}
+
+.circle-2 {
+  width: 300px;
+  height: 300px;
+  background: #4facfe;
+  bottom: -50px;
+  left: -50px;
+  animation: float 8s infinite alternate-reverse;
+}
+
+.circle-3 {
+  width: 200px;
+  height: 200px;
+  background: #7028e4;
+  top: 50%;
+  left: 10%;
+  animation: float 12s infinite alternate;
+}
+
+@keyframes float {
+  from { transform: translate(0, 0); }
+  to { transform: translate(30px, 30px); }
 }
 
 .login-box {
-  width: 450px;
+  position: relative;
+  z-index: 10;
+  width: 420px;
   padding: 40px;
-  background: #ffffff;
-  border-radius: 10px;
-  box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
 }
 
 .login-header {
@@ -183,53 +262,101 @@ const handleLogin = async () => {
   margin-bottom: 40px;
 }
 
-.logo-container {
-  margin-bottom: 10px;
-  display: flex;
-  justify-content: center;
+.logo-glow {
+  display: inline-flex;
+  padding: 15px;
+  background: rgba(0, 242, 254, 0.1);
+  border-radius: 50%;
+  box-shadow: 0 0 20px rgba(0, 242, 254, 0.3);
+  margin-bottom: 15px;
 }
 
 .title {
-  font-size: 26px;
-  color: #333;
-  margin: 0 auto;
-  font-weight: bold;
+  font-size: 28px;
+  color: #fff;
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 
-.login-form {
-  position: relative;
+.subtitle {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 8px;
+}
+
+.login-form :deep(.el-input__wrapper) {
+  background-color: rgba(255, 255, 255, 0.05);
+  box-shadow: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s;
+}
+
+.login-form :deep(.el-input__wrapper.is-focus) {
+  border-color: #00f2fe;
+  box-shadow: 0 0 10px rgba(0, 242, 254, 0.2);
+}
+
+.login-form :deep(.el-input__inner) {
+  color: #fff;
 }
 
 .captcha-container {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
 }
 
 .captcha-btn {
-  width: 140px;
-  flex-shrink: 0;
+  width: 120px;
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  border: none;
+  font-weight: 600;
 }
 
 .login-btn {
   width: 100%;
-  margin-bottom: 20px;
+  height: 50px;
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  border: none;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  margin-top: 10px;
+  box-shadow: 0 10px 20px rgba(0, 242, 254, 0.3);
+  transition: all 0.3s;
+}
+
+.login-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 15px 25px rgba(0, 242, 254, 0.4);
 }
 
 .login-footer {
   text-align: center;
-  font-size: 12px;
-  color: #999;
+  margin-top: 30px;
+}
+
+.footer-tips {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.4);
+  margin-bottom: 15px;
+}
+
+.footer-links {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .register-link {
-  color: #409eff;
+  color: #00f2fe;
   text-decoration: none;
-  cursor: pointer;
-  transition: color 0.3s;
+  font-weight: 600;
+  margin-left: 5px;
 }
 
 .register-link:hover {
-  color: #66b1ff;
+  text-decoration: underline;
 }
 </style>
