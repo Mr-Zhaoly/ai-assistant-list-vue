@@ -5,7 +5,7 @@ export const chatApi = {
   // Streaming chat
   chat: async (data: { question: string; userId: string; sessionId: string }) => {
     const baseURL = import.meta.env.VITE_API_URL
-    const url = `${baseURL}/database/chat`
+    const url = `${baseURL}/tool-agent/database/chat`
     
     console.log('[Chat API] Request:', {
       url,
@@ -37,7 +37,7 @@ export const chatApi = {
   // Feedback API
   feedback: async (data: { feedbacks: any[]; userId: string; sessionId: string }) => {
     const baseURL = import.meta.env.VITE_API_URL
-    const url = `${baseURL}/database/feedback`
+    const url = `${baseURL}/tool-agent/database/feedback`
     
     console.log('[Feedback API] Request:', {
       url,

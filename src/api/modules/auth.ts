@@ -4,7 +4,7 @@ export const authApi = {
   // 获取验证码
   getCaptcha: (data: { account: string }) => {
     return request({
-      url: '/business/user/captcha',
+      url: '/business-agent/business/user/captcha',
       method: 'post',
       data
     })
@@ -12,7 +12,7 @@ export const authApi = {
   // 登录
   login: (data: { account: string; password: string; captcha: string }) => {
     return request({
-      url: '/business/user/login',
+      url: '/business-agent/business/user/login',
       method: 'post',
       data
     })
@@ -20,7 +20,7 @@ export const authApi = {
   // 注册
   register: (data: { username: string; email: string; password: string }) => {
     return request({
-      url: '/business/user/register',
+      url: '/business-agent/business/user/register',
       method: 'post',
       data
     })
@@ -28,14 +28,14 @@ export const authApi = {
   // 退出登录
   logout: () => {
     return request({
-      url: '/business/user/logout',
+      url: '/business-agent/business/user/logout',
       method: 'post'
     })
   },
   // 获取用户信息
   getUserInfo: () => {
     return request({
-      url: '/business/user/info',
+      url: '/business-agent/business/user/info',
       method: 'get'
     })
   }
