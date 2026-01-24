@@ -57,4 +57,30 @@ const router = createRouter({
   routes
 })
 
+// 白名单，不需要登录即可访问的页面
+const whiteList = ['/login', '/register']
+
+router.beforeEach((to, from, next) => {
+  const token = localStorage.getItem('token')
+
+  if (token) {
+    if (to.path === '/login') {
+      // 已登录，访问登录页则跳转到首页
+      next({ path: '/' })
+    } else {
+      // 已登录，访问其他页面直接放行
+      next()
+    }
+  } else {
+    // 未登录
+    if (whiteList.indexOf(to.path) !== -1) {
+      // 在免登录白名单，直接进入
+      next()
+    } else {
+      // 否则全部重定向到登录页
+      next(`/login?redirect=${to.path}`)
+    }
+  }
+})
+
 export default router

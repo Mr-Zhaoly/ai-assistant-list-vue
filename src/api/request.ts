@@ -35,7 +35,14 @@ service.interceptors.response.use(
     }
   },
   (error: AxiosError) => {
-    ElMessage.error(error.message || 'Request failed')
+    if (error.response && error.response.status === 401) {
+      // Token 过期或无效，清除本地存储并跳转到登录页
+      localStorage.removeItem('token')
+      window.location.href = '/login'
+      ElMessage.error('登录已过期，请重新登录')
+    } else {
+      ElMessage.error(error.message || 'Request failed')
+    }
     return Promise.reject(error)
   }
 )
