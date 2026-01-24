@@ -50,6 +50,7 @@ const messages = ref([
 // 输入框内容
 const inputMessage = ref('')
 const isLoading = ref(false)
+const isStopping = ref(false)
 const messagesContainerRef = ref(null)
 
 // 滚动到底部
@@ -116,6 +117,24 @@ const processStreamResponse = async (stream, aiMessageId, onToolFeedback) => {
         parsing = false
       }
     }
+  }
+}
+
+// 停止生成
+const stopGeneration = async () => {
+  if (!isLoading.value || isStopping.value) return
+  
+  isStopping.value = true
+  try {
+    await chatApi.stop({
+      userId: userStore.userInfo.name || 'user',
+      sessionId: activeChatId.value.toString()
+    })
+  } catch (error) {
+    console.error('Failed to stop generation:', error)
+  } finally {
+    isStopping.value = false
+    isLoading.value = false
   }
 }
 
@@ -354,8 +373,17 @@ const selectChat = (id) => {
           <div class="input-footer">
             <span class="input-tips">使用 Shift + Enter 换行</span>
             <el-button 
+              v-if="isLoading"
+              type="danger" 
+              :loading="isStopping"
+              @click="stopGeneration"
+            >
+              停止
+            </el-button>
+            <el-button 
+              v-else
               type="primary" 
-              :disabled="!inputMessage.trim() || isLoading"
+              :disabled="!inputMessage.trim()"
               @click="sendMessage"
             >
               发送

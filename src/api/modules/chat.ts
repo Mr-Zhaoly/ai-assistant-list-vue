@@ -63,5 +63,14 @@ export const chatApi = {
     
     console.log('[Feedback API] Success: Stream started')
     return response.body
+  },
+  
+  // Stop API
+  stop: async (data: { userId: string; sessionId: string }) => {
+    return request({
+      url: '/tool-agent/database/stop',
+      method: 'post',
+      data
+    })
   }
 }
