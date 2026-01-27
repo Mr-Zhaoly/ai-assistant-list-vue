@@ -27,6 +27,10 @@ export const chatApi = {
         status: response.status,
         statusText: response.statusText
       })
+      if (response.status === 401) {
+        localStorage.removeItem('token')
+        window.location.href = '/login'
+      }
       throw new Error(`HTTP error! status: ${response.status}`)
     }
     
@@ -59,6 +63,10 @@ export const chatApi = {
         status: response.status,
         statusText: response.statusText
       })
+      if (response.status === 401) {
+        localStorage.removeItem('token')
+        window.location.href = '/login'
+      }
       throw new Error(`HTTP error! status: ${response.status}`)
     }
     
