@@ -375,6 +375,7 @@ const selectChat = (id) => {
             <el-button 
               v-if="isLoading"
               type="danger" 
+              class="action-btn"
               :loading="isStopping"
               @click="stopGeneration"
             >
@@ -383,6 +384,7 @@ const selectChat = (id) => {
             <el-button 
               v-else
               type="primary" 
+              class="action-btn"
               :disabled="!inputMessage.trim()"
               @click="sendMessage"
             >
@@ -612,12 +614,19 @@ const selectChat = (id) => {
   justify-content: space-between;
   align-items: center;
   margin-top: 10px;
-  padding: 0 5px;
 }
 
 .input-tips {
   font-size: 12px;
   color: #64748b;
+}
+
+.action-btn {
+  width: 80px;
+  height: 32px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .tool-feedback-card {
